@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"runtime"
@@ -100,6 +101,57 @@ func TestProducerPublish(t *testing.T) {
 	}
 
 	err := w.Publish(topicName, []byte("bad_test_case"))
+	if err != nil {
+		t.Fatalf("error %s", err)
+	}
+
+	readMessages(topicName, t, msgCount)
+}
+
+func newCompressProducer(compress CompressType) *Producer {
+	config := NewConfig()
+	config.Compress = compress
+	p, _ := NewProducer("127.0.0.1:4150", config)
+	p.SetLogger(nullLogger, LogLevelInfo)
+	return p
+}
+
+func TestProducerCompressPublish(t *testing.T) {
+	topicName := "client-compress-publish"
+	msgCount := rand.Intn(100)
+
+	w0 := newCompressProducer(CompressNon)
+	defer w0.Stop()
+	w1 := newCompressProducer(CompressSnappy)
+	defer w1.Stop()
+	w2 := newCompressProducer(CompressDeflate)
+	defer w2.Stop()
+
+	randProducer := func() *Producer {
+		v := rand.Int() % 4
+		switch v {
+		case 0:
+			return w0
+		case 1:
+			return w1
+		case 2:
+			return w2
+		default:
+			panic("impossible")
+		}
+	}
+
+	for i := 0; i < msgCount; i++ {
+		w := randProducer()
+		err := w.Publish(topicName, []byte("publish_test_case"))
+		if err != nil {
+			t.Fatalf("publish %d compress %d error %s", i, w.config.Compress, err)
+		} else {
+			t.Logf("publish %d compress %d", i, w.config.Compress)
+		}
+	}
+
+	err := w0.Publish(topicName, []byte("bad_test_case"))
 	if err != nil {
 		t.Fatalf("error %s", err)
 	}

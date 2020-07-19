@@ -8,7 +8,10 @@ import (
 func BenchmarkCommand(b *testing.B) {
 	b.StopTimer()
 	data := make([]byte, 2048)
-	cmd := Publish("test", data)
+	cmd, er := Publish("test", data, CompressNon)
+	if nil != er {
+		b.Fail()
+	}
 	var buf bytes.Buffer
 	b.StartTimer()
 

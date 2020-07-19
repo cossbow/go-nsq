@@ -14,6 +14,24 @@ var MagicV1 = []byte("  V1")
 // MagicV2 is the initial identifier sent when connecting for V2 clients
 var MagicV2 = []byte("  V2")
 
+type CompressType byte
+
+const (
+	CompressNon CompressType = iota
+	CompressSnappy
+	CompressDeflate
+)
+
+var compressTypeNames = map[CompressType]string{
+	CompressNon:     "Non",
+	CompressSnappy:  "Snappy",
+	CompressDeflate: "Deflate",
+}
+
+func (c CompressType) String() string {
+	return compressTypeNames[c]
+}
+
 // frame types
 const (
 	FrameTypeResponse int32 = 0

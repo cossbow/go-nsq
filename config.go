@@ -157,9 +157,14 @@ type Config struct {
 	TlsConfig *tls.Config `opt:"tls_config"`
 
 	// Compression Settings
-	Deflate      bool `opt:"deflate"`
-	DeflateLevel int  `opt:"deflate_level" min:"1" max:"9" default:"6"`
-	Snappy       bool `opt:"snappy"`
+	// Deprecated
+	Deflate bool `opt:"deflate"`
+	// Deprecated
+	DeflateLevel int `opt:"deflate_level" min:"1" max:"9" default:"6"`
+	// Deprecated
+	Snappy bool `opt:"snappy"`
+	// Compression in client
+	Compress CompressType `opt:"compress"`
 
 	// Size of the buffer (in bytes) used by nsqd for buffering writes to this connection
 	OutputBufferSize int64 `opt:"output_buffer_size" default:"16384"`

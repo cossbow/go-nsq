@@ -192,7 +192,11 @@ func (w *Producer) Stop() {
 // and the response error if present
 func (w *Producer) PublishAsync(topic string, body []byte, doneChan chan *ProducerTransaction,
 	args ...interface{}) error {
-	return w.sendCommandAsync(Publish(topic, body), doneChan, args)
+	cmd, err := Publish(topic, body, w.config.Compress)
+	if err != nil {
+		return err
+	}
+	return w.sendCommandAsync(cmd, doneChan, args)
 }
 
 // MultiPublishAsync publishes a slice of message bodies to the specified topic
@@ -204,7 +208,7 @@ func (w *Producer) PublishAsync(topic string, body []byte, doneChan chan *Produc
 // and the response error if present
 func (w *Producer) MultiPublishAsync(topic string, body [][]byte, doneChan chan *ProducerTransaction,
 	args ...interface{}) error {
-	cmd, err := MultiPublish(topic, body)
+	cmd, err := MultiPublish(topic, body, w.config.Compress)
 	if err != nil {
 		return err
 	}
@@ -214,13 +218,17 @@ func (w *Producer) MultiPublishAsync(topic string, body [][]byte, doneChan chan 
 // Publish synchronously publishes a message body to the specified topic, returning
 // an error if publish failed
 func (w *Producer) Publish(topic string, body []byte) error {
-	return w.sendCommand(Publish(topic, body))
+	cmd, er := Publish(topic, body, w.config.Compress)
+	if nil != er {
+		return er
+	}
+	return w.sendCommand(cmd)
 }
 
 // MultiPublish synchronously publishes a slice of message bodies to the specified topic, returning
 // an error if publish failed
 func (w *Producer) MultiPublish(topic string, body [][]byte) error {
-	cmd, err := MultiPublish(topic, body)
+	cmd, err := MultiPublish(topic, body, w.config.Compress)
 	if err != nil {
 		return err
 	}
@@ -231,7 +239,11 @@ func (w *Producer) MultiPublish(topic string, body [][]byte) error {
 // where the message will queue at the channel level until the timeout expires, returning
 // an error if publish failed
 func (w *Producer) DeferredPublish(topic string, delay time.Duration, body []byte) error {
-	return w.sendCommand(DeferredPublish(topic, delay, body))
+	cmd, er := DeferredPublish(topic, delay, body, w.config.Compress)
+	if nil != er {
+		return er
+	}
+	return w.sendCommand(cmd)
 }
 
 // DeferredPublishAsync publishes a message body to the specified topic
@@ -244,7 +256,11 @@ func (w *Producer) DeferredPublish(topic string, delay time.Duration, body []byt
 // and the response error if present
 func (w *Producer) DeferredPublishAsync(topic string, delay time.Duration, body []byte,
 	doneChan chan *ProducerTransaction, args ...interface{}) error {
-	return w.sendCommandAsync(DeferredPublish(topic, delay, body), doneChan, args)
+	cmd, er := DeferredPublish(topic, delay, body, w.config.Compress)
+	if nil != er {
+		return er
+	}
+	return w.sendCommandAsync(cmd, doneChan, args)
 }
 
 func (w *Producer) sendCommand(cmd *Command) error {

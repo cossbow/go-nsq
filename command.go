@@ -15,9 +15,10 @@ var byteNewLine = []byte("\n")
 
 // Command represents a command from a client to an NSQ daemon
 type Command struct {
-	Name   []byte
-	Params [][]byte
-	Body   []byte
+	Name     []byte
+	Params   [][]byte
+	Body     []byte
+	Compress CompressType
 }
 
 // String returns the name and parameters of the Command
@@ -93,14 +94,14 @@ func Identify(js map[string]interface{}) (*Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Command{[]byte("IDENTIFY"), nil, body}, nil
+	return &Command{[]byte("IDENTIFY"), nil, body, CompressNon}, nil
 }
 
 // Auth sends credentials for authentication
 //
 // After `Identify`, this is usually the first message sent, if auth is used.
 func Auth(secret string) (*Command, error) {
-	return &Command{[]byte("AUTH"), nil, []byte(secret)}, nil
+	return &Command{[]byte("AUTH"), nil, []byte(secret), CompressNon}, nil
 }
 
 // Register creates a new Command to add a topic/channel for the connected nsqd
@@ -109,7 +110,7 @@ func Register(topic string, channel string) *Command {
 	if len(channel) > 0 {
 		params = append(params, []byte(channel))
 	}
-	return &Command{[]byte("REGISTER"), params, nil}
+	return &Command{[]byte("REGISTER"), params, nil, CompressNon}
 }
 
 // UnRegister creates a new Command to remove a topic/channel for the connected nsqd
@@ -118,32 +119,48 @@ func UnRegister(topic string, channel string) *Command {
 	if len(channel) > 0 {
 		params = append(params, []byte(channel))
 	}
-	return &Command{[]byte("UNREGISTER"), params, nil}
+	return &Command{[]byte("UNREGISTER"), params, nil, CompressNon}
 }
 
 // Ping creates a new Command to keep-alive the state of all the
 // announced topic/channels for a given client
 func Ping() *Command {
-	return &Command{[]byte("PING"), nil, nil}
+	return &Command{[]byte("PING"), nil, nil, CompressNon}
 }
 
 // Publish creates a new Command to write a message to a given topic
-func Publish(topic string, body []byte) *Command {
+func Publish(topic string, body []byte, compress CompressType) (*Command, error) {
+	data, er := compressBytes(compress, body)
+	if nil != er {
+		return nil, er
+	}
 	var params = [][]byte{[]byte(topic)}
-	return &Command{[]byte("PUB"), params, body}
+	return &Command{[]byte("PUB"), params, data, compress}, nil
 }
 
 // DeferredPublish creates a new Command to write a message to a given topic
 // where the message will queue at the channel level until the timeout expires
-func DeferredPublish(topic string, delay time.Duration, body []byte) *Command {
+func DeferredPublish(topic string, delay time.Duration, body []byte, compress CompressType) (*Command, error) {
+	body, er := compressBytes(compress, body)
+	if nil != er {
+		return nil, er
+	}
 	var params = [][]byte{[]byte(topic), []byte(strconv.Itoa(int(delay / time.Millisecond)))}
-	return &Command{[]byte("DPUB"), params, body}
+	return &Command{[]byte("DPUB"), params, body, compress}, nil
 }
 
 // MultiPublish creates a new Command to write more than one message to a given topic
 // (useful for high-throughput situations to avoid roundtrips and saturate the pipe)
-func MultiPublish(topic string, bodies [][]byte) (*Command, error) {
+func MultiPublish(topic string, bodies [][]byte, compress CompressType) (*Command, error) {
 	var params = [][]byte{[]byte(topic)}
+
+	for i, b := range bodies {
+		d, er := compressBytes(compress, b)
+		if nil != er {
+			return nil, er
+		}
+		bodies[i] = d
+	}
 
 	num := uint32(len(bodies))
 	bodySize := 4
@@ -168,27 +185,27 @@ func MultiPublish(topic string, bodies [][]byte) (*Command, error) {
 		}
 	}
 
-	return &Command{[]byte("MPUB"), params, buf.Bytes()}, nil
+	return &Command{[]byte("MPUB"), params, buf.Bytes(), compress}, nil
 }
 
 // Subscribe creates a new Command to subscribe to the given topic/channel
 func Subscribe(topic string, channel string) *Command {
 	var params = [][]byte{[]byte(topic), []byte(channel)}
-	return &Command{[]byte("SUB"), params, nil}
+	return &Command{[]byte("SUB"), params, nil, CompressNon}
 }
 
 // Ready creates a new Command to specify
 // the number of messages a client is willing to receive
 func Ready(count int) *Command {
 	var params = [][]byte{[]byte(strconv.Itoa(count))}
-	return &Command{[]byte("RDY"), params, nil}
+	return &Command{[]byte("RDY"), params, nil, CompressNon}
 }
 
 // Finish creates a new Command to indiciate that
 // a given message (by id) has been processed successfully
 func Finish(id MessageID) *Command {
 	var params = [][]byte{id[:]}
-	return &Command{[]byte("FIN"), params, nil}
+	return &Command{[]byte("FIN"), params, nil, CompressNon}
 }
 
 // Requeue creates a new Command to indicate that
@@ -196,14 +213,14 @@ func Finish(id MessageID) *Command {
 // NOTE: a delay of 0 indicates immediate requeue
 func Requeue(id MessageID, delay time.Duration) *Command {
 	var params = [][]byte{id[:], []byte(strconv.Itoa(int(delay / time.Millisecond)))}
-	return &Command{[]byte("REQ"), params, nil}
+	return &Command{[]byte("REQ"), params, nil, CompressNon}
 }
 
 // Touch creates a new Command to reset the timeout for
 // a given message (by id)
 func Touch(id MessageID) *Command {
 	var params = [][]byte{id[:]}
-	return &Command{[]byte("TOUCH"), params, nil}
+	return &Command{[]byte("TOUCH"), params, nil, CompressNon}
 }
 
 // StartClose creates a new Command to indicate that the
@@ -211,11 +228,11 @@ func Touch(id MessageID) *Command {
 // send messages to a client in this state and the client is expected
 // finish pending messages and close the connection
 func StartClose() *Command {
-	return &Command{[]byte("CLS"), nil, nil}
+	return &Command{[]byte("CLS"), nil, nil, CompressNon}
 }
 
 // Nop creates a new Command that has no effect server side.
 // Commonly used to respond to heartbeats
 func Nop() *Command {
-	return &Command{[]byte("NOP"), nil, nil}
+	return &Command{[]byte("NOP"), nil, nil, CompressNon}
 }
